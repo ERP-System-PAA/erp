@@ -130,13 +130,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             font-style: italic;
         }
 
-        /* Logo container */
+        /* =========================================
+           LOGO STYLES (TWO LOGOS)
+           ========================================= */
+        .logo-row {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+            margin-bottom: 15px;
+        }
+
         .logo-placeholder {
-            width: 80px;
-            height: 80px;
+            width: 90px;
+            height: 90px;
             background-color: var(--white);
             border-radius: 50%;
-            margin: 0 auto 15px auto;
             display: flex;
             justify-content: center;
             align-items: center;
@@ -148,8 +157,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .logo-placeholder img {
             width: 100%;
             height: 100%;
-            object-fit: cover;
+            object-fit: contain;   /* keeps whole logo visible */
             border-radius: 50%;
+            padding: 6px;
+            background-color: var(--white);
         }
 
         /* =========================================
@@ -371,18 +382,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             .login-header {
                 border-radius: 0;
             }
+
+            /* Smaller logos on mobile */
+            .logo-placeholder {
+                width: 75px;
+                height: 75px;
+            }
+
+            .logo-row {
+                gap: 15px;
+            }
         }
     </style>
 </head>
 <body>
 
 <div class="login-container">
-    <!-- Header with Logo -->
+    <!-- Header with TWO Logos -->
     <div class="login-header">
-        <div class="logo-placeholder">
-            <img src="logo.jpg" alt="Logo">
+        <div class="logo-row">
+            <div class="logo-placeholder">
+                <img src="logo.jpg" alt="Company Logo">
+            </div>
+            <div class="logo-placeholder">
+                <img src="logo_erp.jpg" alt="ERP Logo">
+            </div>
         </div>
-        <h1>WELCOME </h1>
+        <h1>WELCOME</h1>
         <p>Sign in to your account</p>
     </div>
 

@@ -122,14 +122,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             background:linear-gradient(90deg, transparent, var(--amber) 50%, transparent);
             opacity:.6;
         }
-        .crest {
-            width:84px; height:84px; border-radius:50%;
-            margin:0 auto 18px; display:flex; justify-content:center; align-items:center;
-            border:2px solid var(--amber);
-            box-shadow:0 0 0 6px rgba(232,140,46,.06), 0 8px 24px rgba(0,0,0,.5);
-            overflow:hidden; background:var(--maroon-deep);
+
+        /* =========================================
+           DUAL LOGO STYLES — FORCED CIRCLE
+           ========================================= */
+        .crest-row {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 18px;
         }
-        .crest img { width:100%; height:100%; object-fit:cover; }
+
+        .crest {
+            width: 78px;
+            height: 78px;
+            border-radius: 50%;
+            border: 2px solid var(--amber);
+            box-shadow:
+                0 0 0 6px rgba(232, 140, 46, 0.06),
+                0 8px 24px rgba(0, 0, 0, 0.5);
+            overflow: hidden;
+            flex-shrink: 0;
+            background-color: var(--maroon-deep);
+            position: relative;
+        }
+
+        .crest img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;       /* force-fill the circle */
+            object-position: center;
+            display: block;
+            border-radius: 50%;      /* keep img circular */
+        }
+
         .admin-header h1 {
             font-size:22px; font-weight:800; letter-spacing:3px;
             text-transform:uppercase; color:var(--off-white); margin-bottom:6px;
@@ -242,6 +269,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 display:flex; flex-direction:column; justify-content:center;
                 border-top-width:6px;
             }
+            /* Smaller crests on mobile */
+            .crest { width:68px; height:68px; }
+            .crest-row { gap:14px; }
         }
     </style>
 </head>
@@ -249,7 +279,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 <div class="admin-card">
     <div class="admin-header">
-        <div class="crest"><img src="logo.jpg" alt="Logo"></div>
+        <!-- Dual Circular Logos -->
+        <div class="crest-row">
+            <div class="crest"><img src="logo.jpg" alt="Company Logo"></div>
+            <div class="crest"><img src="logo_erp.jpg" alt="ERP Logo"></div>
+        </div>
         <h1>SUPER <span>ADMIN</span></h1>
         <p>Restricted Access</p>
         <div class="access-badge">Secure Portal</div>

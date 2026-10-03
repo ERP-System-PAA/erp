@@ -95,6 +95,28 @@ $navId = 'adminSidebar_' . substr(md5($currentPage . microtime()), 0, 6);
     z-index: 1030;
     display: flex;
     flex-direction: column;
+    transition: background 0.3s ease, color 0.3s ease;
+}
+
+/* Light mode styles for the sidebar */
+body.light-mode #<?= $navId ?> {
+    --maroon-deep: #f5e6e6;
+    --maroon-card: #e8d5d5;
+    --maroon-dark: #d4b8b8;
+    --maroon-mid:  #c9a8a8;
+    --amber: #b35f0a;
+    --amber-bright: #d97a1a;
+    --off-white: #2b0e0e;
+    --text-muted: #7a5a5a;
+
+    background:
+        radial-gradient(circle at 20% 20%, rgba(180, 130, 130, 0.2), transparent 45%),
+        var(--maroon-deep);
+    border-right: 1px solid rgba(179, 95, 10, 0.2);
+}
+
+body.light-mode #<?= $navId ?>::-webkit-scrollbar-thumb {
+    background: rgba(179, 95, 10, 0.3);
 }
 
 #<?= $navId ?>::-webkit-scrollbar { width: 6px; }
@@ -116,6 +138,7 @@ $navId = 'adminSidebar_' . substr(md5($currentPage . microtime()), 0, 6);
     color: var(--off-white);
     border-bottom: 1px solid rgba(232, 140, 46, 0.15);
     margin-bottom: 12px;
+    transition: color 0.3s ease, border-color 0.3s ease;
 }
 #<?= $navId ?> .sidebar-brand i {
     color: var(--amber);
@@ -138,6 +161,7 @@ $navId = 'adminSidebar_' . substr(md5($currentPage . microtime()), 0, 6);
     text-transform: uppercase;
     color: var(--text-muted);
     padding: 14px 22px 8px;
+    transition: color 0.3s ease;
 }
 
 #<?= $navId ?> .sidebar-menu {
@@ -171,6 +195,9 @@ $navId = 'adminSidebar_' . substr(md5($currentPage . microtime()), 0, 6);
     background: var(--maroon-card);
     color: #fff;
 }
+body.light-mode #<?= $navId ?> .sidebar-menu .nav-link:hover {
+    color: #2b0e0e;
+}
 #<?= $navId ?> .sidebar-menu .nav-link:hover i:first-child {
     color: var(--amber);
 }
@@ -180,6 +207,10 @@ $navId = 'adminSidebar_' . substr(md5($currentPage . microtime()), 0, 6);
     color: #fff;
     border-left-color: var(--amber);
     box-shadow: 0 6px 18px rgba(0, 0, 0, .35);
+}
+body.light-mode #<?= $navId ?> .sidebar-menu .nav-link.active {
+    color: #2b0e0e;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, .1);
 }
 #<?= $navId ?> .sidebar-menu .nav-link.active i:first-child {
     color: var(--amber);
@@ -202,7 +233,11 @@ $navId = 'adminSidebar_' . substr(md5($currentPage . microtime()), 0, 6);
     margin: 2px 18px 8px 22px;
     max-height: 0;
     overflow: hidden;
-    transition: max-height .35s ease, padding .3s ease;
+    transition: max-height .35s ease, padding .3s ease, background 0.3s ease;
+}
+body.light-mode #<?= $navId ?> .submenu {
+    background: rgba(0, 0, 0, .08);
+    border-left: 2px solid rgba(179, 95, 10, .3);
 }
 #<?= $navId ?> .submenu.open {
     max-height: 600px;
@@ -243,6 +278,9 @@ $navId = 'adminSidebar_' . substr(md5($currentPage . microtime()), 0, 6);
     background: rgba(232, 140, 46, .1);
     font-weight: 800;
 }
+body.light-mode #<?= $navId ?> .submenu .sub-link.active {
+    background: rgba(179, 95, 10, .15);
+}
 #<?= $navId ?> .submenu .sub-link.active i {
     color: var(--amber);
 }
@@ -253,6 +291,7 @@ $navId = 'adminSidebar_' . substr(md5($currentPage . microtime()), 0, 6);
     margin-top: 20px;
     padding: 16px 22px 8px;
     border-top: 1px solid rgba(232, 140, 46, 0.15);
+    transition: border-color 0.3s ease;
 }
 
 #<?= $navId ?> .logout-btn {
@@ -270,27 +309,108 @@ $navId = 'adminSidebar_' . substr(md5($currentPage . microtime()), 0, 6);
     border-left: 3px solid transparent;
     transition: background .2s ease, color .2s ease, border-color .2s ease, transform .15s ease;
 }
+body.light-mode #<?= $navId ?> .logout-btn {
+    color: #8b2020;
+    background: rgba(200, 150, 150, 0.4);
+}
 #<?= $navId ?> .logout-btn i {
     font-size: 15px;
     color: #ff8080;
     transition: color .2s ease;
+}
+body.light-mode #<?= $navId ?> .logout-btn i {
+    color: #8b2020;
 }
 #<?= $navId ?> .logout-btn:hover {
     background: var(--maroon-mid);
     color: #fff;
     border-left-color: #ff5555;
 }
+body.light-mode #<?= $navId ?> .logout-btn:hover {
+    background: #c9a8a8;
+    color: #2b0e0e;
+    border-left-color: #8b2020;
+}
 #<?= $navId ?> .logout-btn:hover i {
     color: #fff;
+}
+body.light-mode #<?= $navId ?> .logout-btn:hover i {
+    color: #2b0e0e;
 }
 #<?= $navId ?> .logout-btn:active {
     transform: translateY(1px);
 }
 
+/* ---------- Theme toggle button ---------- */
+#<?= $navId ?> .theme-toggle-btn {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 11px 18px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: .5px;
+    text-decoration: none;
+    color: var(--off-white);
+    background: rgba(232, 140, 46, 0.15);
+    border-left: 3px solid transparent;
+    transition: background .2s ease, color .2s ease, border-color .2s ease, transform .15s ease;
+    cursor: pointer;
+    border: none;
+    width: 100%;
+    text-align: left;
+    font-family: inherit;
+    margin-bottom: 8px;
+}
+body.light-mode #<?= $navId ?> .theme-toggle-btn {
+    background: rgba(179, 95, 10, 0.15);
+    color: #2b0e0e;
+}
+#<?= $navId ?> .theme-toggle-btn i {
+    font-size: 15px;
+    color: var(--amber);
+    transition: color .2s ease, transform 0.3s ease;
+}
+#<?= $navId ?> .theme-toggle-btn:hover {
+    background: var(--maroon-card);
+    color: #fff;
+    border-left-color: var(--amber);
+}
+body.light-mode #<?= $navId ?> .theme-toggle-btn:hover {
+    background: var(--maroon-dark);
+    color: #2b0e0e;
+}
+#<?= $navId ?> .theme-toggle-btn:active {
+    transform: translateY(1px);
+}
+#<?= $navId ?> .theme-toggle-btn .theme-label {
+    flex: 1;
+}
+#<?= $navId ?> .theme-toggle-btn .theme-icon-dark {
+    display: inline-block;
+}
+#<?= $navId ?> .theme-toggle-btn .theme-icon-light {
+    display: none;
+}
+body.light-mode #<?= $navId ?> .theme-toggle-btn .theme-icon-dark {
+    display: none;
+}
+body.light-mode #<?= $navId ?> .theme-toggle-btn .theme-icon-light {
+    display: inline-block;
+}
+
+/* ---------- Page content adjustments for light mode ---------- */
 .admin-content {
     margin-left: 260px;
     padding: 40px 20px;
     max-width: 1100px;
+    transition: background 0.3s ease, color 0.3s ease;
+}
+
+body.light-mode {
+    background: #f5e6e6;
+    color: #2b0e0e;
 }
 
 @media (max-width: 768px) {
@@ -348,8 +468,13 @@ $navId = 'adminSidebar_' . substr(md5($currentPage . microtime()), 0, 6);
         <?php endforeach; ?>
     </ul>
 
-    <!-- ---------- Sidebar footer: Logout ---------- -->
+    <!-- ---------- Sidebar footer: Theme toggle + Logout ---------- -->
     <div class="sidebar-footer">
+        <button class="theme-toggle-btn" id="themeToggle_<?= $navId ?>" type="button" aria-label="Toggle theme">
+            <i class="bi bi-moon-fill theme-icon-dark"></i>
+            <i class="bi bi-sun-fill theme-icon-light"></i>
+            <span class="theme-label">Light Mode</span>
+        </button>
         <a class="logout-btn"
            href="/erp/auth/admin_logout.php"
            onclick="return confirm('Are you sure you want to log out?');">
@@ -365,6 +490,7 @@ $navId = 'adminSidebar_' . substr(md5($currentPage . microtime()), 0, 6);
     var sidebar = document.getElementById('<?= $navId ?>');
     if (!sidebar) return;
 
+    // --- Module toggle ---
     sidebar.querySelectorAll('.module-toggle').forEach(function (toggle) {
         toggle.addEventListener('click', function (e) {
             e.preventDefault();
@@ -375,6 +501,38 @@ $navId = 'adminSidebar_' . substr(md5($currentPage . microtime()), 0, 6);
             var isOpen = submenu.classList.toggle('open');
             toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
         });
+    });
+
+    // --- Theme toggle ---
+    var themeToggle = document.getElementById('themeToggle_<?= $navId ?>');
+    var themeLabel = themeToggle.querySelector('.theme-label');
+    var STORAGE_KEY = 'admin_theme_preference';
+
+    function applyTheme(theme) {
+        if (theme === 'light') {
+            document.body.classList.add('light-mode');
+            themeLabel.textContent = 'Dark Mode';
+        } else {
+            document.body.classList.remove('light-mode');
+            themeLabel.textContent = 'Light Mode';
+        }
+    }
+
+    // Load saved theme preference on page load
+    var savedTheme = localStorage.getItem(STORAGE_KEY);
+    if (savedTheme) {
+        applyTheme(savedTheme);
+    } else {
+        // Default to dark mode if no preference saved
+        applyTheme('dark');
+    }
+
+    // Toggle theme on button click
+    themeToggle.addEventListener('click', function () {
+        var isLight = document.body.classList.contains('light-mode');
+        var newTheme = isLight ? 'dark' : 'light';
+        applyTheme(newTheme);
+        localStorage.setItem(STORAGE_KEY, newTheme);
     });
 })();
 </script>
