@@ -1,154 +1,179 @@
 <?php
 require_once __DIR__ . '/../include/config.php';
 
-// --- Bootstrap detection ---
-$hasSuperAdmin = false;
-try {
-    $hasSuperAdmin = (bool) $pdo
-        ->query("SELECT id FROM users WHERE role = 'super_admin' LIMIT 1")
-        ->fetch();
-} catch (Throwable $e) {
-    $hasSuperAdmin = false;
-}
-$isBootstrap = !$hasSuperAdmin;
-
-// --- Access control ---
-$isSuperAdminSession = !empty($_SESSION['role']) && $_SESSION['role'] === 'super_admin';
-
-if ($hasSuperAdmin && !$isSuperAdminSession) {
-    header("Location: admin_login.php?reason=login_required");
+// ---------- Already logged in? Route by role ----------
+if (is_logged_in()) {
+    if (in_array($_SESSION['role'] ?? '', ['super_admin', 'admin'], true)) {
+        header("Location: ../admin/admin_dashboard.php");
+        exit;
+    }
+    header("Location: admin_login.php");
     exit;
 }
 
-$errors  = [];
-$success = '';
-$old = ['username' => '', 'email' => '', 'contact_number' => '', 'role' => 'admin'];
-
-// --- CSRF token ---
+// ---------- CSRF ----------
 if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
+// ---------- Helper: auto-generate employee code ----------
+function generate_employee_code(PDO $pdo, string $prefix = 'EMP'): string
+{
+    $year = date('Y');
+
+    $stmt = $pdo->prepare("
+        SELECT MAX(CAST(SUBSTRING_INDEX(employee_code, '-', -1) AS UNSIGNED)) AS max_seq
+        FROM users
+        WHERE employee_code LIKE :pattern
+    ");
+    $stmt->execute([':pattern' => $prefix . '-' . $year . '-%']);
+    $next = (int)($stmt->fetchColumn() ?: 0) + 1;
+
+    while (true) {
+        $code  = sprintf('%s-%s-%04d', $prefix, $year, $next);
+        $check = $pdo->prepare('SELECT 1 FROM users WHERE employee_code = ? LIMIT 1');
+        $check->execute([$code]);
+        if (!$check->fetchColumn()) {
+            return $code;
+        }
+        $next++;
+    }
+}
+
+// ---------- State ----------
+$errors  = [];
+$success = '';
+$old = [
+    'username'   => '',
+    'email'      => '',
+    'department' => '',
+];
+
+$validDepts = ['Procurement','Inventory','Production','Sales','Finance','HR','Admin'];
+
+// ---------- Handle POST ----------
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'] ?? '')) {
-        $errors[] = "Session expired. Please try again.";
+
+    // CSRF
+    if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
+        $errors[] = 'Invalid session token. Please refresh the page.';
     }
 
-    $username = trim($_POST['username'] ?? '');
-    $email    = trim($_POST['email'] ?? '');
-    $contact  = trim($_POST['contact_number'] ?? '');
-    $password = $_POST['password'] ?? '';
-    $confirm  = $_POST['confirm_password'] ?? '';
+    // ---------- Collect ----------
+    $username   = trim($_POST['username'] ?? '');
+    $email      = strtolower(trim($_POST['email'] ?? ''));
+    $password   = $_POST['password'] ?? '';
+    $confirm    = $_POST['confirm_password'] ?? '';
+    $department = trim($_POST['department'] ?? '');
 
     $old = [
-        'username'       => $username,
-        'email'          => $email,
-        'contact_number' => $contact,
-        'role'           => 'admin',
+        'username'   => $username,
+        'email'      => $email,
+        'department' => $department,
     ];
 
-    // --- Role ---
-    if ($isBootstrap) {
-        $role = 'super_admin';
-    } else {
-        $role = $_POST['role'] ?? 'admin';
-        if (!in_array($role, ['admin', 'super_admin'], true)) {
-            $role = 'admin';
-        }
-        $old['role'] = $role;
+    // ---------- Fixed backend values ----------
+    // TESTING: every account created here is a SUPER ADMIN so it can
+    // pass the role gate in admin_login.php.
+    $role   = 'admin';
+    $status = 'Active';
+
+    // ---------- Validation ----------
+    if ($username === '') {
+        $errors[] = 'Username is required.';
+    } elseif (!preg_match('/^[a-zA-Z0-9_]{3,50}$/', $username)) {
+        $errors[] = 'Username must be 3–50 characters (letters, numbers, underscore only).';
     }
 
-    // --- Validation ---
-    if ($username === '' || $email === '' || $password === '') {
-        $errors[] = "Please fill in all required fields.";
+    if ($email === '') {
+        $errors[] = 'Email is required.';
+    } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $errors[] = 'Valid email is required.';
+    } elseif (!preg_match('/^[a-zA-Z0-9._%+-]+@gmail\.com$/', $email)) {
+        $errors[] = 'Email must be a @gmail.com address.';
+    } elseif (strlen($email) > 100) {
+        $errors[] = 'Email is too long (max 100 characters).';
     }
-    if (strlen($username) < 3) {
-        $errors[] = "Username must be at least 3 characters.";
-    }
-    if (!preg_match('/^[a-zA-Z0-9_.-]+$/', $username)) {
-        $errors[] = "Username may only contain letters, numbers, dots, dashes, underscores.";
-    }
-    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        $errors[] = "Invalid email address.";
-    }
-    if ($contact !== '' && !preg_match('/^[0-9+\-\s()]{6,20}$/', $contact)) {
-        $errors[] = "Contact number looks invalid.";
-    }
-    if (strlen($password) < 6) {
-        $errors[] = "Password must be at least 6 characters.";
+
+    if (strlen($password) < 8) {
+        $errors[] = 'Password must be at least 8 characters.';
     }
     if ($password !== $confirm) {
-        $errors[] = "Passwords do not match.";
+        $errors[] = 'Passwords do not match.';
     }
 
-    // --- Uniqueness ---
-    if (empty($errors)) {
-        $stmt = $pdo->prepare("SELECT id FROM users WHERE username = ? OR email = ? LIMIT 1");
-        $stmt->execute([$username, $email]);
-        if ($stmt->fetch()) {
-            $errors[] = "Username or email already taken.";
-        }
+    if ($department === '') {
+        $errors[] = 'Department is required.';
+    } elseif (!in_array($department, $validDepts, true)) {
+        $errors[] = 'Invalid department selected.';
     }
 
-    // --- Insert ---
-    if (empty($errors)) {
-        $hash = password_hash($password, PASSWORD_DEFAULT);
+    // ---------- Uniqueness ----------
+    if (!$errors) {
+        $stmt = $pdo->prepare('SELECT id FROM users WHERE username = ? LIMIT 1');
+        $stmt->execute([$username]);
+        if ($stmt->fetch()) $errors[] = 'Username already exists.';
+
+        $stmt = $pdo->prepare('SELECT id FROM users WHERE email = ? LIMIT 1');
+        $stmt->execute([$email]);
+        if ($stmt->fetch()) $errors[] = 'Email already exists.';
+    }
+
+    // ---------- Insert ----------
+    if (!$errors) {
         try {
-            $pdo->beginTransaction();
+            $hash = password_hash($password, PASSWORD_DEFAULT);
 
-            // Detect if `id` column is auto-increment.
-            // If it is, omit id from INSERT. If it isn't, use MAX(id)+1.
-            $col = $pdo->query("SHOW COLUMNS FROM users LIKE 'id'")->fetch(PDO::FETCH_ASSOC);
-            $isAuto = $col && stripos($col['Extra'], 'auto_increment') !== false;
+            $sql = "INSERT INTO users
+                (username, password, email, role, employee_code, department, status)
+                VALUES
+                (:username, :password, :email, :role, :employee_code, :department, :status)";
+            $stmt = $pdo->prepare($sql);
 
-            if ($isAuto) {
-                $stmt = $pdo->prepare("
-                    INSERT INTO users (username, password, email, contact_number, role)
-                    VALUES (?, ?, ?, ?, ?)
-                ");
-                $stmt->execute([
-                    $username,
-                    $hash,
-                    $email,
-                    $contact !== '' ? $contact : null,
-                    $role,
-                ]);
-            } else {
-                $nextId = (int) $pdo->query("SELECT COALESCE(MAX(id), 0) + 1 FROM users")->fetchColumn();
-                $stmt = $pdo->prepare("
-                    INSERT INTO users (id, username, password, email, contact_number, role)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                ");
-                $stmt->execute([
-                    $nextId,
-                    $username,
-                    $hash,
-                    $email,
-                    $contact !== '' ? $contact : null,
-                    $role,
-                ]);
+            $employeeCode = '';
+            $attempts     = 0;
+
+            while (true) {
+                $employeeCode = generate_employee_code($pdo, 'EMP');
+                try {
+                    $stmt->execute([
+                        ':username'      => $username,
+                        ':password'      => $hash,
+                        ':email'         => $email,
+                        ':role'          => $role,
+                        ':employee_code' => $employeeCode,
+                        ':department'    => $department,
+                        ':status'        => $status,
+                    ]);
+                    break;
+                } catch (PDOException $e) {
+                    $isCodeClash = $e->getCode() === '23000'
+                        && stripos($e->getMessage(), 'uniq_employee_code') !== false;
+
+                    if ($isCodeClash && ++$attempts < 5) {
+                        continue;
+                    }
+                    throw $e;
+                }
             }
 
-            $pdo->commit();
-        } catch (Throwable $e) {
-            if ($pdo->inTransaction()) $pdo->rollBack();
-            error_log("admin_register insert failed: " . $e->getMessage());
-            $errors[] = "Could not create account. Please try again.";
-        }
+            // Success → redirect to login
+            header("Location: admin_login.php?created=1&reason=account_created");
+            exit;
 
-        if (empty($errors)) {
-            if ($isBootstrap) {
-                header("Location: admin_login.php?created=1");
-                exit;
-            }
-            $success = "Account created successfully.";
-            $old = ['username' => '', 'email' => '', 'contact_number' => '', 'role' => 'admin'];
+        } catch (PDOException $e) {
+            error_log('[admin_register] create: ' . $e->getMessage());
+            $errors[] = 'Database error occurred while creating the account. Please try again.';
         }
     }
 }
 
-function e(?string $v): string {
-    return htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
+// Preview next employee code (for display only)
+$nextEmployeeCode = 'EMP-' . date('Y') . '-0001';
+try {
+    $nextEmployeeCode = generate_employee_code($pdo, 'EMP');
+} catch (Throwable $e) {
+    // ignore, use fallback
 }
 ?>
 <!DOCTYPE html>
@@ -156,7 +181,7 @@ function e(?string $v): string {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?= $isBootstrap ? 'Initial Setup' : 'Create Admin' ?> — ERP</title>
+    <title>Create Account — ERP (Testing)</title>
     <style>
         :root {
             --maroon-deep:#2b0e0e; --maroon-card:#3d1414; --maroon-dark:#5a1f1e; --maroon-mid:#7a2a28;
@@ -199,6 +224,15 @@ function e(?string $v): string {
             font-size:11px; font-weight:600; letter-spacing:2px;
             text-transform:uppercase; color:var(--text-muted); margin-top:6px;
         }
+        .test-banner {
+            background:rgba(232,140,46,.12);
+            border-top:1px solid rgba(232,140,46,.25);
+            border-bottom:1px solid rgba(232,140,46,.25);
+            color:var(--amber);
+            font-size:11px; font-weight:800; letter-spacing:2px;
+            text-transform:uppercase; text-align:center;
+            padding:8px 12px;
+        }
         .admin-form { padding:28px 34px 36px; }
         .form-group { margin-bottom:18px; position:relative; }
         .form-group label {
@@ -218,6 +252,7 @@ function e(?string $v): string {
             background-image:url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23E88C2E'%3e%3cpath d='M7 10l5 5 5-5z'/%3e%3c/svg%3e");
             background-repeat:no-repeat; background-position:right 12px center; background-size:20px;
         }
+        .form-group select option { background:#3d1414; color:#f0e6e6; }
         .form-group input::placeholder { color:rgba(154,133,133,.6); font-weight:500; }
         .form-group input:focus, .form-group select:focus {
             outline:none; border-color:var(--amber);
@@ -248,7 +283,6 @@ function e(?string $v): string {
         }
         .alert-danger { background:rgba(255,82,82,.1); color:var(--error-red); border-left:3px solid var(--error-red); }
         .alert-success { background:rgba(76,175,80,.1); color:#6ddc71; border-left:3px solid var(--green); }
-        .alert-info { background:rgba(232,140,46,.1); color:var(--amber-bright); border-left:3px solid var(--amber); }
         .alert svg { width:18px; height:18px; flex-shrink:0; margin-top:1px; }
         .alert ul { margin:0; padding-left:16px; }
         @keyframes slideDown { from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:translateY(0)} }
@@ -259,14 +293,18 @@ function e(?string $v): string {
         }
         .admin-footer a { color:var(--amber); text-decoration:none; font-weight:800; }
         .admin-footer a:hover { color:var(--amber-bright); text-decoration:underline; }
+        .hint {
+            font-size:11px; color:var(--text-muted); margin-top:6px;
+            padding-left:4px; letter-spacing:.3px;
+        }
     </style>
 </head>
 <body>
 
 <div class="admin-card">
     <div class="admin-header">
-        <h1><?= $isBootstrap ? 'INITIAL <span>SETUP</span>' : 'CREATE <span>ACCOUNT</span>' ?></h1>
-        <p><?= $isBootstrap ? 'Create the first super admin' : 'Super Admin Access' ?></p>
+        <h1>CREATE <span>ACCOUNT</span></h1>
+        <p>Employee Registration</p>
     </div>
 
     <div class="admin-form">
@@ -277,85 +315,72 @@ function e(?string $v): string {
                     <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
                 </svg>
                 <ul>
-                    <?php foreach ($errors as $e): ?>
-                        <li><?= e($e) ?></li>
+                    <?php foreach ($errors as $err): ?>
+                        <li><?= e($err) ?></li>
                     <?php endforeach; ?>
                 </ul>
-            </div>
-        <?php endif; ?>
-
-        <?php if ($success): ?>
-            <div class="alert alert-success">
-                <svg viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-                </svg>
-                <?= e($success) ?>
-            </div>
-        <?php endif; ?>
-
-        <?php if ($isBootstrap): ?>
-            <div class="alert alert-info">
-                <svg viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
-                </svg>
-                <span>First-time setup. This account will be created as <strong>Super Admin</strong>.</span>
             </div>
         <?php endif; ?>
 
         <form method="POST" novalidate autocomplete="off">
             <input type="hidden" name="csrf_token" value="<?= e($_SESSION['csrf_token']) ?>">
 
+            <!-- Username -->
             <div class="form-group">
                 <label>Username</label>
-                <input type="text" name="username" required value="<?= e($old['username']) ?>" placeholder="Choose username">
+                <input type="text" name="username" required maxlength="50"
+                       value="<?= e($old['username']) ?>"
+                       placeholder="Choose username"
+                       pattern="[a-zA-Z0-9_]{3,50}">
                 <svg class="input-icon" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
             </div>
 
+            <!-- Email (gmail only) -->
             <div class="form-group">
-                <label>Email</label>
-                <input type="email" name="email" required value="<?= e($old['email']) ?>" placeholder="admin@example.com">
+                <label>Email (Gmail)</label>
+                <input type="email" name="email" required maxlength="100"
+                       value="<?= e($old['email']) ?>"
+                       placeholder="yourname@gmail.com"
+                       pattern="[a-zA-Z0-9._%+-]+@gmail\.com"
+                       title="Must be a valid @gmail.com address">
                 <svg class="input-icon" viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
+                <div class="hint">Only @gmail.com addresses are accepted</div>
             </div>
 
+            <!-- Department -->
             <div class="form-group">
-                <label>Contact Number</label>
-                <input type="text" name="contact_number" value="<?= e($old['contact_number']) ?>" placeholder="Optional">
-                <svg class="input-icon" viewBox="0 0 24 24"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>
+                <label>Department</label>
+                <select name="department" required>
+                    <option value="" disabled <?= $old['department'] === '' ? 'selected' : '' ?>>— Select department —</option>
+                    <?php foreach ($validDepts as $dept): ?>
+                        <option value="<?= e($dept) ?>" <?= $old['department'] === $dept ? 'selected' : '' ?>>
+                            <?= e($dept) ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
             </div>
 
+            <!-- Password -->
             <div class="form-group">
-                <label>Password</label>
-                <input type="password" name="password" required placeholder="At least 6 characters">
+                <label>Password (min 8 chars)</label>
+                <input type="password" name="password" required minlength="8" maxlength="72"
+                       placeholder="At least 8 characters">
                 <svg class="input-icon" viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM9 6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9V6zm9 14H6V10h12v10zm-6-3c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2z"/></svg>
             </div>
 
+            <!-- Confirm Password -->
             <div class="form-group">
                 <label>Confirm Password</label>
-                <input type="password" name="confirm_password" required placeholder="Re-enter password">
+                <input type="password" name="confirm_password" required minlength="8" maxlength="72"
+                       placeholder="Re-enter password">
                 <svg class="input-icon" viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM9 6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9V6zm9 14H6V10h12v10zm-6-3c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2z"/></svg>
             </div>
 
-            <?php if (!$isBootstrap): ?>
-                <div class="form-group">
-                    <label>Role</label>
-                    <select name="role">
-                        <option value="admin"       <?= $old['role'] === 'admin' ? 'selected' : '' ?>>Admin</option>
-                        <option value="super_admin" <?= $old['role'] === 'super_admin' ? 'selected' : '' ?>>Super Admin</option>
-                    </select>
-                </div>
-            <?php endif; ?>
-
-            <button type="submit" class="btn-admin">
-                <?= $isBootstrap ? 'Create Super Admin' : 'Create Account' ?>
-            </button>
+            <button type="submit" class="btn-admin">Register</button>
         </form>
 
         <div class="admin-footer">
-            <?php if ($isBootstrap): ?>
-                Already have an account? <a href="admin_login.php">Sign In</a>
-            <?php else: ?>
-                <a href="../admin/admin_dashboard.php">← Back to Dashboard</a>
-            <?php endif; ?>
+            Already have an account? <a href="admin_login.php">Sign In</a>
         </div>
     </div>
 </div>

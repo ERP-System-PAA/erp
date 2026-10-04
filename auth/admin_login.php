@@ -3,10 +3,13 @@ require_once __DIR__ . '/../include/config.php';
 
 // Already logged in? Route by role
 if (is_logged_in()) {
-    if ($_SESSION['role'] === 'super_admin' || $_SESSION['role'] === 'admin') {
+    if (in_array($_SESSION['role'] ?? '', ['super_admin', 'admin'], true)) {
         header("Location: ../admin/admin_dashboard.php");
         exit;
     }
+    // Non-admin roles shouldn't be logged in here — bounce them
+    header("Location: ../auth/admin_login.php");
+    exit;
 }
 
 // --- Detect bootstrap (no super admin yet) ---
@@ -46,32 +49,58 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         $username = trim($_POST['username'] ?? '');
         $password = $_POST['password'] ?? '';
-        $username_value = $username; // keep raw, escape on output
+        $username_value = $username;
 
         if ($username === '' || $password === '') {
             $error = "Please enter both credentials.";
         } else {
+            // Fetch by username OR email — no role filter here so we can
+            // report a meaningful status (inactive/resigned) instead of a
+            // generic "invalid credentials".
             $stmt = $pdo->prepare(
-                "SELECT * FROM users 
-                 WHERE (username = ? OR email = ?) 
-                   AND role IN ('super_admin','admin') 
+                "SELECT id, username, email, password, role, department, status,
+                        first_name, last_name, employee_code
+                 FROM users
+                 WHERE username = ? OR email = ?
                  LIMIT 1"
             );
             $stmt->execute([$username, $username]);
-            $admin = $stmt->fetch();
+            $user = $stmt->fetch();
 
-            if ($admin && password_verify($password, $admin['password'])) {
+            // Use a generic message everywhere to avoid leaking which
+            // usernames exist (user enumeration defence).
+            $invalidMsg = "Invalid credentials or unauthorized access.";
+
+            if (!$user || !password_verify($password, $user['password'])) {
+                $error = $invalidMsg;
+            }
+            // Only super_admin and admin can sign in here
+            elseif (!in_array($user['role'], ['super_admin', 'admin'], true)) {
+                $error = $invalidMsg;
+            }
+            // Block inactive / resigned accounts
+            elseif ($user['status'] !== 'Active') {
+                $error = "Your account is {$user['status']}. Please contact HR.";
+            }
+            else {
+                // Successful login
                 session_regenerate_id(true);
 
-                $_SESSION['user_id']  = $admin['id'];
-                $_SESSION['username'] = $admin['username'];
-                $_SESSION['email']    = $admin['email'];
-                $_SESSION['role']     = $admin['role'];
+                $_SESSION['user_id']       = (int)$user['id'];
+                $_SESSION['username']      = $user['username'];
+                $_SESSION['email']         = $user['email'];
+                $_SESSION['role']          = $user['role'];
+                $_SESSION['department']    = $user['department'];   // ← IMPORTANT
+                $_SESSION['employee_code'] = $user['employee_code'];
+                $_SESSION['first_name']    = $user['first_name'];
+                $_SESSION['last_name']     = $user['last_name'];
+                $_SESSION['login_at']      = time();
+
+                // Rotate CSRF token on privilege change
+                $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 
                 header("Location: ../admin/admin_dashboard.php");
                 exit;
-            } else {
-                $error = "Invalid credentials or unauthorized access.";
             }
         }
     }
@@ -123,9 +152,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             opacity:.6;
         }
 
-        /* =========================================
-           DUAL LOGO STYLES — FORCED CIRCLE
-           ========================================= */
         .crest-row {
             display: flex;
             justify-content: center;
@@ -151,10 +177,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .crest img {
             width: 100%;
             height: 100%;
-            object-fit: cover;       /* force-fill the circle */
+            object-fit: cover;
             object-position: center;
             display: block;
-            border-radius: 50%;      /* keep img circular */
+            border-radius: 50%;
         }
 
         .admin-header h1 {
@@ -269,7 +295,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 display:flex; flex-direction:column; justify-content:center;
                 border-top-width:6px;
             }
-            /* Smaller crests on mobile */
             .crest { width:68px; height:68px; }
             .crest-row { gap:14px; }
         }
@@ -279,7 +304,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 <div class="admin-card">
     <div class="admin-header">
-        <!-- Dual Circular Logos -->
         <div class="crest-row">
             <div class="crest"><img src="logo.jpg" alt="Company Logo"></div>
             <div class="crest"><img src="logo_erp.jpg" alt="ERP Logo"></div>
