@@ -4,6 +4,9 @@
 // Location: /erp/include/config.php
 // ============================================================
 
+// ✅ Set Philippine time for all PHP date functions
+date_default_timezone_set('Asia/Manila');
+
 // Database config
 $host = 'localhost';
 $db   = 'erp_db';
@@ -18,6 +21,10 @@ try {
     $pdo = new PDO("mysql:host=$host;dbname=$db;charset=utf8mb4", $user, $pass);
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+
+    // ✅ Force MySQL session to Philippine time (+08:00)
+    $pdo->exec("SET time_zone = '+08:00'");
+
 } catch (PDOException $e) {
     die("Database connection failed: " . $e->getMessage());
 }
@@ -88,27 +95,21 @@ function current_department(): ?string {
 
 /**
  * Get the list of module keys the current user can access.
- *   - super_admin → ALL module keys
- *   - admin       → modules mapped to their department
- *   - user        → nothing
  */
 function allowed_modules(): array {
     if (!is_logged_in()) {
         return [];
     }
 
-    // Super admin: full access
     if (is_super_admin()) {
-        return department_module_map()['Admin'];   // ← return VALUES, not array_keys()
+        return department_module_map()['Admin'];
     }
 
-    // Department admin
     if (($_SESSION['role'] ?? '') === 'admin') {
         $dept = current_department();
         return department_module_map()[$dept] ?? [];
     }
 
-    // Everyone else
     return [];
 }
 
@@ -120,7 +121,7 @@ function require_module(string $moduleKey): void {
     require_login();
 
     if (is_super_admin()) {
-        return; // super admin bypasses all gates
+        return;
     }
 
     $allowed = allowed_modules();

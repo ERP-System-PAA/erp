@@ -37,6 +37,7 @@ $adminModules = [
             ['name' => 'Goods Received',    'file' => 'procurement/goods_received.php'],
             ['name' => 'Raw Materials',     'file' => 'procurement/raw_materials.php'],
             ['name' => 'Expenditure',       'file' => 'procurement/expenditure.php'],
+            ['name' => 'Attendance',       'file' => 'attendance/attendance.php'],
         ],
     ],
     'inventory' => [
@@ -47,6 +48,7 @@ $adminModules = [
             ['name' => 'Stock In',    'file' => 'inventory/stock_in.php'],
             ['name' => 'Stock Out',   'file' => 'inventory/stock_out.php'],
             ['name' => 'Adjustments', 'file' => 'inventory/adjustments.php'],
+            ['name' => 'Attendance',       'file' => 'attendance/attendance.php'],
         ],
     ],
     'production' => [
@@ -57,6 +59,7 @@ $adminModules = [
             ['name' => 'Bill of Materials', 'file' => 'production/bom.php'],
             ['name' => 'Schedules',         'file' => 'production/schedules.php'],
             ['name' => 'Product Quantity',  'file' => 'production/product_quantity.php'],
+            ['name' => 'Attendance',       'file' => 'attendance/attendance.php'],
         ],
     ],
     'sales' => [
@@ -67,6 +70,7 @@ $adminModules = [
             ['name' => 'Quotations',   'file' => 'sales/quotations.php'],
             ['name' => 'Sales Orders', 'file' => 'sales/sales_orders.php'],
             ['name' => 'Invoices',     'file' => 'sales/invoices.php'],
+            ['name' => 'Attendance',       'file' => 'attendance/attendance.php'],
         ],
     ],
     'finance_hr' => [
@@ -77,6 +81,7 @@ $adminModules = [
             ['name' => 'Expenses',        'file' => 'finance/expenses.php'],
             ['name' => 'Employees',       'file' => 'finance/employees.php'],
             ['name' => 'Attendance',      'file' => 'finance/attendance.php'],
+            ['name' => 'Attendance',       'file' => 'attendance/attendance.php'],
         ],
     ],
 ];
